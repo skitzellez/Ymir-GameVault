@@ -1537,6 +1537,31 @@ void App::RunEmulator() {
 
         // Process SDL events
         SDL_Event evt{};
+        // Game Vault (Xbox): the controller arrives a moment after start-up and its "added" event does not always
+        // reach us, so every second open any gamepad SDL lists that is not open yet
+        if (gv::IsXboxApp()) {
+            static uint64 s_gvNextPadCheck = 0;
+            if (SDL_GetTicks() >= s_gvNextPadCheck) {
+                s_gvNextPadCheck = SDL_GetTicks() + 1000;
+                int count = 0;
+                if (SDL_JoystickID *ids = SDL_GetGamepads(&count)) {
+                    for (int i = 0; i < count; i++) {
+                        if (gamepads.contains(ids[i])) {
+                            continue;
+                        }
+                        if (SDL_Gamepad *gamepad = SDL_OpenGamepad(ids[i])) {
+                            const int playerIndex = gamepadPlayerIndices.AssignPlayerIndex(ids[i]);
+                            gamepads[ids[i]] = gamepad;
+                            inputContext.ConnectGamepad(playerIndex);
+                            const char *name = SDL_GetGamepadName(gamepad);
+                            gv::XboxLog(fmt::format("pad: {} connected as player {}", name ? name : "controller",
+                                                    playerIndex + 1));
+                        }
+                    }
+                    SDL_free(ids);
+                }
+            }
+        }
         while (SDL_PollEvent(&evt)) {
             ImGui_ImplSDL3_ProcessEvent(&evt);
             if (io.WantCaptureKeyboard != imguiWantedKeyboardInput) {
@@ -1642,6 +1667,9 @@ void App::RunEmulator() {
 
             case SDL_EVENT_GAMEPAD_ADDED: //
             {
+                if (gamepads.contains(evt.gdevice.which)) {
+                    break; // Game Vault: already opened by the Xbox pad check
+                }
                 SDL_Gamepad *gamepad = SDL_OpenGamepad(evt.gdevice.which);
                 if (gamepad != nullptr) {
                     // const int playerIndex = SDL_GetGamepadPlayerIndex(gamepad);

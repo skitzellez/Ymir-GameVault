@@ -116,6 +116,8 @@ static int SDLCALL GvXboxMain(int, char **) {
     SDL_SetHint(SDL_HINT_AUDIO_DRIVER, "dummy");
     // Direct3D 12 renderer: swap chain in real pixels on the Xbox (our sdl3-uwp)
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d12");
+    // Windows.Gaming.Input: the only controller API in an Xbox app (our SDL keeps it off unless asked)
+    SDL_SetHint("SDL_JOYSTICK_WGI", "1");
     // The activation (and its link) arrives while SDL pumps the window's events
     SDL_InitSubSystem(SDL_INIT_VIDEO);
     const char *uri = nullptr;
