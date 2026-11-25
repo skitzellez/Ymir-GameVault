@@ -34,6 +34,19 @@ bool IsXboxApp() {
 #endif
 }
 
+static std::string g_home;
+
+void SetXboxHome(const std::string &home) {
+    g_home = home;
+    while (!g_home.empty() && (g_home.back() == '/' || g_home.back() == 92)) {
+        g_home.pop_back();
+    }
+}
+
+static std::string HomeLogPath() {
+    return g_home.empty() ? std::string() : g_home + "/logs/Saturn (Ymir) - last session.txt";
+}
+
 static std::string LogPath() {
     char *pref = SDL_GetPrefPath("", "Ymir");
     std::string path = pref ? pref : "";
@@ -48,6 +61,11 @@ void XboxLogReset() {
     if (FILE *f = fopen(LogPath().c_str(), "w")) {
         fclose(f);
     }
+    if (!HomeLogPath().empty()) {
+        if (FILE *f = fopen(HomeLogPath().c_str(), "w")) {
+            fclose(f);
+        }
+    }
 }
 
 void XboxLog(const std::string &line) {
@@ -57,6 +75,12 @@ void XboxLog(const std::string &line) {
     if (FILE *f = fopen(LogPath().c_str(), "a")) {
         fprintf(f, "%s\n", line.c_str());
         fclose(f);
+    }
+    if (!HomeLogPath().empty()) {
+        if (FILE *f = fopen(HomeLogPath().c_str(), "a")) {
+            fprintf(f, "%s\n", line.c_str());
+            fclose(f);
+        }
     }
 }
 

@@ -131,6 +131,7 @@ static int SDLCALL GvXboxMain(int, char **) {
     static std::string s_profile;
     s_profile = pref ? pref : "";
     SDL_free(pref);
+    gv::SetXboxHome(GvLinkValue(link, "home"));
     gv::XboxLogReset();
     gv::XboxLog("Ymir for Game Vault " Ymir_VERSION ", link: " + link);
     {

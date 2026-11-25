@@ -1540,6 +1540,25 @@ void App::RunEmulator() {
         // Game Vault (Xbox): the controller arrives a moment after start-up and its "added" event does not always
         // reach us, so every second open any gamepad SDL lists that is not open yet
         if (gv::IsXboxApp()) {
+            // Back to Game Vault: hold View + Menu for 1.5 seconds on any controller (Ymir quits; SDL then opens
+            // the link's launchOnExit, gamevault:?from=ymir)
+            static uint64 s_gvComboSince = 0;
+            bool combo = false;
+            for (auto &[id, pad] : gamepads) {
+                combo |= SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_BACK) &&
+                         SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_START);
+            }
+            if (!combo) {
+                s_gvComboSince = 0;
+            } else if (s_gvComboSince == 0) {
+                s_gvComboSince = SDL_GetTicks();
+            } else if (SDL_GetTicks() - s_gvComboSince >= 1500) {
+                s_gvComboSince = 0;
+                gv::XboxLog("pad: View + Menu held, back to Game Vault");
+                SDL_Event quitEvent{.type = SDL_EVENT_QUIT};
+                SDL_PushEvent(&quitEvent);
+            }
+
             static uint64 s_gvNextPadCheck = 0;
             if (SDL_GetTicks() >= s_gvNextPadCheck) {
                 s_gvNextPadCheck = SDL_GetTicks() + 1000;

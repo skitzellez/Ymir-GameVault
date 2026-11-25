@@ -14,6 +14,10 @@ bool IsXboxApp();
 void XboxLog(const std::string &line);
 void XboxLogReset();
 
+// Game Vault's games drive folder (the link's home=): the log is also written to <home>\logs\Saturn (Ymir) - last session.txt,
+// which Game Vault sends with a problem report
+void SetXboxHome(const std::string &home);
+
 // Sound for the Xbox app: SDL audio devices hang inside an app package, so an XAudio2 voice plays
 // 16-bit stereo; `pull` fills the given number of stereo frames.
 class XboxAudio {
