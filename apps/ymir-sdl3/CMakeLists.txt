@@ -2,6 +2,8 @@
 add_executable(ymir-sdl3
     src/main.cpp
     src/winmain.cpp
+    src/gv/gv_xbox.cpp
+    src/gv/gv_xbox.hpp
 
     src/app/app.cpp
     src/app/app.hpp
@@ -659,3 +661,11 @@ if (MSVC)
     set_target_properties(ymir-sdl3 PROPERTIES FOLDER "Ymir")
     set_target_properties(ymir-sdl3-rc PROPERTIES FOLDER "Ymir")
 endif ()
+
+# Game Vault: host CD code needs SetupAPI (statically linked SDL3 used to bring it in). Delay-loaded, so the Xbox app
+# (where SetupAPI may be missing) only loads it if a host drive is ever opened.
+if (WIN32)
+    target_link_libraries(ymir-sdl3 PRIVATE setupapi delayimp)
+    target_link_options(ymir-sdl3 PRIVATE "/DELAYLOAD:setupapi.dll" "/DELAYLOAD:dxcompiler.dll" "/DELAYLOAD:d3dcompiler_47.dll"
+        "/DELAYLOAD:dwmapi.dll" "/DELAYLOAD:imm32.dll" "/DELAYLOAD:winmm.dll")
+endif()

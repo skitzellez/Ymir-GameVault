@@ -32,13 +32,17 @@
 
 #include <ymir/core/types.hpp>
 
+#include <gv/gv_xbox.hpp>
+
 namespace util {
 
 void ShowFatalErrorDialog(const char *msg) {
+    gv::XboxLog(std::string("fatal error: ") + msg); // Game Vault (Xbox)
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Fatal error", msg, nullptr);
 }
 
 static void ShowExceptionDialog(const char *msg) {
+    gv::XboxLog(std::string("exception: ") + msg); // Game Vault (Xbox)
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Exception", msg, nullptr);
 }
 
@@ -99,6 +103,39 @@ void RegisterExceptionHandler(bool allExceptions) {
                        ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo->ExceptionRecord->ExceptionAddress,
                        ExceptionInfo->ExceptionRecord->ExceptionFlags, threadId);
 
+        {
+            // Game Vault: which module the crash is in, and where inside it
+            HMODULE mod = nullptr;
+            wchar_t modName[MAX_PATH] = L"?";
+            if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                   (LPCWSTR)ExceptionInfo->ExceptionRecord->ExceptionAddress, &mod)) {
+                GetModuleFileNameW(mod, modName, MAX_PATH);
+            }
+            char modNameA[MAX_PATH * 3] = {};
+            WideCharToMultiByte(CP_UTF8, 0, modName, -1, modNameA, sizeof(modNameA), nullptr, nullptr);
+            fmt::format_to(out, "Module: {} +0x{:X}\n", modNameA,
+                           (uintptr_t)ExceptionInfo->ExceptionRecord->ExceptionAddress - (uintptr_t)mod);
+            // values on the crashed thread's stack that point into the exe's code (likely return addresses)
+            const uintptr_t exeBase = (uintptr_t)GetModuleHandleW(nullptr);
+            const auto *dos = (const IMAGE_DOS_HEADER *)exeBase;
+            const auto *nt = (const IMAGE_NT_HEADERS *)(exeBase + dos->e_lfanew);
+            const uintptr_t exeEnd = exeBase + nt->OptionalHeader.SizeOfImage;
+            const uintptr_t *sp = (const uintptr_t *)ExceptionInfo->ContextRecord->Rsp;
+            fmt::format_to(out, "Exe stack:");
+            int found = 0;
+            for (int i = 0; i < 4096 && found < 24; i++) {
+                MEMORY_BASIC_INFORMATION mbi{};
+                if (i % 512 == 0 && (!VirtualQuery(sp + i, &mbi, sizeof(mbi)) || mbi.State != MEM_COMMIT)) {
+                    break;
+                }
+                const uintptr_t v = sp[i];
+                if (v > exeBase + 0x1000 && v < exeEnd) {
+                    fmt::format_to(out, " {:X}", v - exeBase);
+                    found++;
+                }
+            }
+            fmt::format_to(out, "\n");
+        }
         fmt::format_to(out, "Thread ID: 0x{:X}", threadId);
         if (SUCCEEDED(descOK)) {
             int bufferSize = WideCharToMultiByte(CP_UTF8, 0, threadDesc, -1, NULL, 0, NULL, NULL);

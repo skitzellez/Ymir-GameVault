@@ -28,6 +28,9 @@ Profile::Profile() {
 
 std::filesystem::path Profile::GetUserProfilePath() {
     char *cpath = SDL_GetPrefPath(Ymir_ORGANIZATION_NAME, Ymir_APP_NAME);
+    if (cpath == nullptr) {
+        return {}; // Game Vault: never build a string from a null path
+    }
     std::string path = cpath;
     SDL_free(cpath);
     return std::u8string{path.begin(), path.end()};
@@ -39,6 +42,10 @@ std::filesystem::path Profile::GetPortableProfilePath() {
     return GetExecutableProfilePath();
 #else
     char *cpath = SDL_GetCurrentDirectory();
+    if (cpath == nullptr) {
+        // Game Vault (Xbox): an Xbox app has no current directory; use the user profile (LocalState)
+        return GetUserProfilePath();
+    }
     std::string path = cpath;
     SDL_free(cpath);
     return std::u8string{path.begin(), path.end()};

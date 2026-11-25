@@ -6,6 +6,8 @@
 
 #include <SDL3/SDL_audio.h>
 
+#include <gv/gv_xbox.hpp>
+
 #include <array>
 #include <atomic>
 #include <span>
@@ -101,6 +103,13 @@ private:
     bool m_mute = false;
 
     void UpdateGain();
+
+    // Game Vault (Xbox): XAudio2 sound
+    gv::XboxAudio m_gvAudio;
+    int m_gvRate = 44100;
+    int m_gvChannels = 2;
+    SDL_AudioFormat m_gvFormat = SDL_AUDIO_S16;
+    void GvPull(short *frames, int count);
 
     void ProcessAudioCallback(SDL_AudioStream *stream, int additional_amount, int total_amount);
 };

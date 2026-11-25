@@ -139,7 +139,7 @@ struct DirtyBitmap {
     /// @param[out] outSetCount receives the number of bits set in a row
     /// @return the offset to the next sequence of set bits, or `numBits` if not found.
     template <size_t N>
-        requires(bit::is_power_of_two(N) && N < sizeof(TEntry) * 8u)
+        requires(N != 0 && (N & (N - 1)) == 0 && N < sizeof(TEntry) * 8u) // Game Vault: MSVC rejects bit::is_power_of_two here
     size_t FindNextGroup(size_t &outSetCount, size_t offset = 0) {
         static constexpr TEntry kMask = (1ull << N) - 1ull;
         offset &= ~(N - 1u);

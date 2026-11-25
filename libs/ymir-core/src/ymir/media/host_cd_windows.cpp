@@ -16,6 +16,7 @@
 
 #include <ntddscsi.h>
 #include <setupapi.h>
+#include <appmodel.h> // Game Vault: GetCurrentPackageFullName
 #include <winioctl.h> // for GUID_DEVINTERFACE_CDROM
 
 #include <fmt/format.h>
@@ -79,6 +80,15 @@ std::mutex g_mtxDevices{};
 std::vector<HostDriveInfo> EnumerateHostCDDrives() {
     std::unique_lock lock{g_mtxDevices};
     g_devices.clear();
+
+    // Game Vault (Xbox): an Xbox app has no SetupAPI (delay-loaded, it would crash here) and reaches no PC drives
+    {
+        UINT32 len = 0;
+        if (GetCurrentPackageFullName(&len, nullptr) == ERROR_INSUFFICIENT_BUFFER) {
+            return {};
+        }
+    }
+
 
     // -------------------------------------------------------------------------
     // Enumerate and map drive letters and corresponding NT paths (\Device\CdRom#)

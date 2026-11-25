@@ -136,6 +136,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <gv/gv_xbox.hpp> // Game Vault (Xbox)
+
 CMRC_DECLARE(Ymir_sdl3_rc);
 
 using clk = std::chrono::steady_clock;
@@ -146,6 +148,7 @@ template <typename... TArgs>
 static void ShowStartupFailure(fmt::format_string<TArgs...> fmt, TArgs &&...args) {
     std::string message = fmt::format(fmt, static_cast<TArgs &&>(args)...);
     devlog::error<grp::base>("{}", message);
+    gv::XboxLog("startup error: " + message); // Game Vault (Xbox)
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Ymir startup error", message.c_str(), nullptr);
 }
 
@@ -207,9 +210,11 @@ int App::Run(const CommandLineOptions &options) {
     // Use UTF-8 locale by default on all C runtime functions
     // TODO: adjust this to the user's preferred locale (with ".UTF8" suffix) when i18n is implemented
     setlocale(LC_ALL, "en_us.UTF8");
+    gv::XboxLog("run: start");
 
 #ifdef _WIN32
     gfx::EnumerateDXGIGraphicsAdapters();
+    gv::XboxLog("run: adapters listed");
     devlog::info<grp::base>("DXGI adapters:");
     for (const gfx::DXGIGraphicsAdapter &adapter : gfx::GetDXGIGraphicsAdapters()) {
         devlog::info<grp::base>("  [{}] {} (mem: {:.2f} GiB VRAM, {:.2f} GiB sys, {:.2f} GiB shared)",
@@ -435,9 +440,17 @@ int App::Run(const CommandLineOptions &options) {
     }
 
     // TODO: allow overriding configuration from CommandLineOptions without modifying the underlying values
+    gv::XboxLog("run: loading settings");
 
     if (auto result = settings.Load(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile); !result) {
         devlog::warn<grp::base>("Failed to load settings: {}", result.string());
+    }
+    // Game Vault (Xbox): the Xbox app has no desktop window handle, so Direct3D 11/12 contexts cannot start;
+    // draw through SDL's renderer (our sdl3-uwp, Direct3D 12 on the Xbox), full screen
+    if (gv::IsXboxApp()) {
+        settings.video.graphicsBackend = gfx::Backend::SDLRenderer;
+        settings.video.fullScreen = true;
+        gv::XboxLog("graphics: SDL renderer, full screen");
     }
     util::ScopeGuard sgSaveSettings{[&] {
         if (auto result = settings.Save(); !result) {
