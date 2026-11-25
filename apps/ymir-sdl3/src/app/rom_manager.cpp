@@ -26,7 +26,11 @@ void ROMManager::ScanIPLROMs(std::filesystem::path path) {
         }
 
         // Read file into buffer
-        std::filesystem::path canonicalPath = std::filesystem::canonical(dirEntry.path());
+        std::error_code canonicalError{}; // Game Vault: canonical() throws inside an Xbox app
+        std::filesystem::path canonicalPath = std::filesystem::canonical(dirEntry.path(), canonicalError);
+        if (canonicalError) {
+            canonicalPath = dirEntry.path();
+        }
         {
             std::ifstream in{canonicalPath, std::ios::binary};
             in.read(buf.data(), buf.size());
@@ -67,7 +71,11 @@ void ROMManager::ScanCDBlockROMs(std::filesystem::path path) {
         }
 
         // Read file into buffer
-        std::filesystem::path canonicalPath = std::filesystem::canonical(dirEntry.path());
+        std::error_code canonicalError{}; // Game Vault: canonical() throws inside an Xbox app
+        std::filesystem::path canonicalPath = std::filesystem::canonical(dirEntry.path(), canonicalError);
+        if (canonicalError) {
+            canonicalPath = dirEntry.path();
+        }
         {
             std::ifstream in{canonicalPath, std::ios::binary};
             in.read(buf.data(), buf.size());
@@ -106,7 +114,11 @@ void ROMManager::ScanROMCarts(std::filesystem::path path, std::error_code &err) 
         }
 
         // Read file into buffer
-        std::filesystem::path canonicalPath = std::filesystem::canonical(dirEntry.path());
+        std::error_code canonicalError{}; // Game Vault: canonical() throws inside an Xbox app
+        std::filesystem::path canonicalPath = std::filesystem::canonical(dirEntry.path(), canonicalError);
+        if (canonicalError) {
+            canonicalPath = dirEntry.path();
+        }
         {
             std::ifstream in{canonicalPath, std::ios::binary};
             in.read(buf.data(), buf.size());

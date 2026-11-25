@@ -2870,7 +2870,13 @@ Settings::InputMap &Settings::GetInputMapForContext(void *context) {
 }
 
 std::filesystem::path Settings::Proximate(ProfilePath base, std::filesystem::path path) const {
-    return std::filesystem::proximate(path, m_context.profile.GetPath(base));
+    // Game Vault: proximate() throws inside an Xbox app (no access above LocalState); fall back to the plain path math
+    std::error_code error{};
+    auto result = std::filesystem::proximate(path, m_context.profile.GetPath(base), error);
+    if (error) {
+        return path.lexically_proximate(m_context.profile.GetPath(base));
+    }
+    return result;
 }
 
 std::filesystem::path Settings::Absolute(ProfilePath base, std::filesystem::path path) const {

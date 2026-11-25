@@ -485,11 +485,14 @@ int App::Run(const CommandLineOptions &options) {
     // Load recent discs list.
     // Must be done before LoadDiscImage because it saves the recent list to the file.
     m_discService.LoadRecentDiscs();
+    gv::XboxLog("run: recent discs read");
 
     // Load disc image if provided
     if (!options.gameDiscPath.empty()) {
         // This also inserts the game-specific cartridges or the one configured by the user in Settings > Cartridge
+        gv::XboxLog("run: loading disc");
         m_discService.LoadDiscImage(options.gameDiscPath, false);
+        gv::XboxLog("run: disc loaded");
     } else if (settings.general.rememberLastLoadedDisc && !m_context.state.recentDiscs.empty()) {
         m_discService.LoadDiscImage(m_context.state.recentDiscs[0], false);
     } else {
@@ -513,6 +516,7 @@ int App::Run(const CommandLineOptions &options) {
     // This will also reload persistent SMPC data.
     m_romService.ScanIPLROMs();
     auto iplLoadResult = m_romService.LoadIPLROM();
+    gv::XboxLog(std::string("run: BIOS ") + (iplLoadResult.succeeded ? "loaded" : "not loaded"));
     if (!iplLoadResult.succeeded) {
         if (m_context.romManager.GetIPLROMs().empty()) {
             // Could not load IPL ROM because there are none -- likely to be a fresh install, so show the Welcome screen
@@ -808,6 +812,7 @@ void App::RunEmulator() {
         SDL_DestroyWindow(screen.window);
         m_saveStateService.SaveDebuggerState();
     }};
+    gv::XboxLog("run: window made");
     util::os::ConfigureWindowDecorations(screen.window);
     m_displayService.RescaleUI();
 
@@ -878,6 +883,7 @@ void App::RunEmulator() {
         const gfx::Backend backend = m_graphicsService.GetGraphicsContextBackend();
         const char *backendName = gfx::GraphicsBackendName(backend);
         devlog::info<grp::base>("{} graphics context initialized successfully", backendName);
+        gv::XboxLog(std::string("run: graphics ready: ") + backendName);
     }
 
     settings.video.fullScreen.ObserveAndNotify([&](bool fullScreen) {
@@ -1922,11 +1928,18 @@ void App::RunEmulator() {
                 if (m_persistenceService.LoadPersistentSMPCData(smpcData, path, error, [&](std::string_view message) {
                         devlog::warn<grp::base>("Failed to load SMPC settings from {}: {}", path, message);
                     })) {
+                    // Game Vault (Xbox): the clock follows the console, so the BIOS never needs its "Set Clock" screen
+                    if (gv::IsXboxApp() && !smpcData.STE) {
+                        smpcData.STE = true;
+                        gv::XboxLog("smpc: clock marked as set");
+                    }
+
                     m_context.saturn.instance->SMPC.LoadPersistentData(smpcData);
                     devlog::info<grp::base>("Loaded SMPC settings from {}", path);
                 } else if (error) {
                     // If it failed to load because the file doesn't exist, create the file now and reset SMPC state
                     if (!std::filesystem::is_regular_file(path)) {
+                        smpcData.STE = gv::IsXboxApp(); // Game Vault (Xbox): no "Set Clock" screen
                         m_context.saturn.instance->SMPC.LoadPersistentData(smpcData);
                         m_context.saturn.instance->SMPC.PersistData();
                         devlog::info<grp::base>("SMPC settings created at {}", path);
@@ -2109,6 +2122,15 @@ void App::RunEmulator() {
 
             std::string title = fmt::to_string(buf);
             SDL_SetWindowTitle(screen.window, title.c_str());
+            // Game Vault (Xbox): speed line in xbox_start.txt every 5 seconds (no title bar on the Xbox)
+            {
+                static auto s_gvSpeedLog = now;
+                if (gv::IsXboxApp() && now - s_gvSpeedLog >= 5s) {
+                    s_gvSpeedLog = now;
+                    gv::XboxLog("speed: " + title);
+                }
+            }
+
 
             if (now - t >= 1s) {
                 screen.lastVDP2Frames = screen.VDP2Frames;

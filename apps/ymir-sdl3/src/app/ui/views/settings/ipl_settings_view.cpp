@@ -161,7 +161,7 @@ void IPLSettingsView::Display() {
             ImGui::TableNextRow();
 
             if (ImGui::TableNextColumn()) {
-                std::filesystem::path relativePath = std::filesystem::relative(iplRom.path, iplRomsPath);
+                std::filesystem::path relativePath = iplRom.path.lexically_relative(iplRomsPath); // Game Vault: relative() throws inside an Xbox app
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("%s", fmt::format("{}", relativePath).c_str());
             }

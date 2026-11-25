@@ -119,7 +119,7 @@ void CDBlockSettingsView::Display() {
             ImGui::TableNextRow();
 
             if (ImGui::TableNextColumn()) {
-                std::filesystem::path relativePath = std::filesystem::relative(cdbROM.path, cdbRomsPaths);
+                std::filesystem::path relativePath = cdbROM.path.lexically_relative(cdbRomsPaths); // Game Vault: relative() throws inside an Xbox app
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("%s", fmt::format("{}", relativePath).c_str());
             }

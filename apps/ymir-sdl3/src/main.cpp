@@ -10,6 +10,7 @@
     #include <objc/message.h>
 #endif
 
+#include <exception>
 #include <memory>
 
 #include <gv/gv_xbox.hpp>
@@ -31,6 +32,8 @@
     #include <Windows.h>
     #include <cctype>
     #include <cstdio>
+    #include <filesystem>
+    #include <vector>
     #include <cstdlib>
     #include <string>
 
@@ -64,6 +67,50 @@ static std::string GvLinkValue(const std::string &link, const char *key) {
 
 int main(int argc, char **argv);
 
+// Game Vault (Xbox): a Saturn BIOS (the player's own) is looked for when roms\ipl has none: the disc's folder, the folder
+// above it, then the usual BIOS folders on every drive; the first one found is copied into roms\ipl.
+static void GvFindSaturnBios(const std::string &profile, const std::string &disc) {
+    const std::wstring ipl = std::filesystem::path(std::u8string(profile.begin(), profile.end())).wstring() + L"roms\\ipl";
+    std::error_code ec;
+    std::filesystem::create_directories(ipl, ec);
+    for (const auto &e : std::filesystem::directory_iterator(ipl, ec)) {
+        if (e.is_regular_file(ec)) {
+            gv::XboxLog("bios: already in roms\\ipl");
+            return;
+        }
+    }
+    static const wchar_t *kNames[] = {L"sega_101.bin", L"mpr-17933.bin", L"sega1003.bin", L"sega_100.bin",
+                                      L"mpr-18100.bin", L"saturn_bios.bin", L"Sega Saturn BIOS (USA).bin"};
+    std::vector<std::filesystem::path> dirs;
+    if (!disc.empty()) {
+        const std::filesystem::path d = std::filesystem::path(std::u8string(disc.begin(), disc.end())).parent_path();
+        dirs.push_back(d);
+        dirs.push_back(d.parent_path());
+    }
+    static const wchar_t *kSub[] = {L"Game Vault\\bios", L"bios", L"BIOS", L"system", L"RetroArch\\system",
+                                    L"RetroArch\\bios", L"roms\\bios", L"Emulation\\bios", L"Saturn", L"TEST GAMES", L""};
+    for (wchar_t drive = L'D'; drive <= L'Z'; drive++) {
+        for (const wchar_t *sub : kSub) {
+            dirs.push_back(std::filesystem::path(std::wstring(1, drive) + L":\\" + sub));
+        }
+    }
+    for (const auto &dir : dirs) {
+        for (const wchar_t *name : kNames) {
+            const auto src = dir / name;
+            if (std::filesystem::is_regular_file(src, ec) && std::filesystem::file_size(src, ec) == 512 * 1024) {
+                const auto dst = std::filesystem::path(ipl) / name;
+                if (std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing, ec)) {
+                    gv::XboxLog("bios: copied " + src.string() + " into roms\\ipl");
+                } else {
+                    gv::XboxLog("bios: found " + src.string() + " but the copy failed: " + ec.message());
+                }
+                return;
+            }
+        }
+    }
+    gv::XboxLog("bios: no Saturn BIOS found (looked for sega_101.bin, mpr-17933.bin and others)");
+}
+
 static int SDLCALL GvXboxMain(int, char **) {
     // SDL audio devices hang in an Xbox app: Ymir's sound goes through XAudio2 (gv::XboxAudio)
     SDL_SetHint(SDL_HINT_AUDIO_DRIVER, "dummy");
@@ -95,7 +142,21 @@ static int SDLCALL GvXboxMain(int, char **) {
     if (s_disc.empty()) {
         s_disc = GvLinkValue(link, "cmd");
     }
+    if (s_disc.empty()) {
+        // test hook: LocalState\Ymir\gvtest_disc.txt holds a disc path for a start from the tile
+        if (FILE *f = fopen((s_profile + "gvtest_disc.txt").c_str(), "r")) {
+            char line[1024] = {};
+            if (fgets(line, sizeof(line), f)) {
+                s_disc = line;
+                while (!s_disc.empty() && (s_disc.back() == 0x0A || s_disc.back() == 0x0D)) {
+                    s_disc.pop_back();
+                }
+            }
+            fclose(f);
+        }
+    }
     gv::XboxLog("profile: " + s_profile);
+    GvFindSaturnBios(s_profile, s_disc);
     gv::XboxLog("disc: " + (s_disc.empty() ? std::string("(none)") : s_disc));
 
     static const char *s_argv[8];
@@ -161,6 +222,20 @@ int main(int argc, char **argv) {
         }
 
         gv::XboxLog("main: options read");
+        // Game Vault (Xbox): an unhandled C++ error on any thread ends the app silently; log it first
+        std::set_terminate([] {
+            std::string what = "unknown";
+            if (auto e = std::current_exception()) {
+                try {
+                    std::rethrow_exception(e);
+                } catch (const std::exception &ex) {
+                    what = ex.what();
+                } catch (...) {
+                }
+            }
+            gv::XboxLog("terminate: unhandled error: " + what);
+            std::abort();
+        });
         util::RegisterExceptionHandler(enableAllExceptions);
         gv::XboxLog("main: exception handler on");
 
